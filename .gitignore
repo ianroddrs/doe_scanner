@@ -2,3 +2,14 @@
 __pycache__/
 *.pyc
 temp_pdfs/
+
+*.exe
+build/
+dist/
+*.spec
+
+
+*.db
+*.db-wal
+*.db-shm
+*.pkl
