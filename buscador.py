@@ -8,12 +8,7 @@ import fitz  # PyMuPDF
 # ==========================================
 # CONFIGURAÇÕES
 # ==========================================
-BASE_URL = "https://www.ioepa.com.br/arquivos/"
 PASTA_OCR_LOCAL = "textos_ocr"
-
-# Intervalos de busca caso não sejam informados
-ANOS_LOCAL = range(1980, 2008)  # Para arquivos TXT locais
-ANOS_ONLINE = range(2008, 2027) # Para PDFs online (ajuste conforme o ano atual)
 
 def normalizar_texto(texto):
     if not texto: return ""
@@ -50,73 +45,40 @@ def buscar_local_txt(nome, ano=None, mes=None, dia=None, cpf=None):
     for arquivo in arquivos_alvo:
         caminho_txt = os.path.join(PASTA_OCR_LOCAL, arquivo)
         with open(caminho_txt, 'r', encoding='utf-8') as f:
-            conteudo_norm = normalizar_texto(f.read())
+            conteudo = f.read()
             
-            achou_nome = nome_norm in conteudo_norm
-            achou_cpf = True if not cpf_norm else (cpf_norm in conteudo_norm)
-            
-            if achou_nome and achou_cpf:
-                p = arquivo.split('.')
-                data_fmt = f"{p[2]}/{p[1]}/{p[0]}"
-                print(f"  [+] Encontrado Local: {data_fmt}")
-                resultados.append({'data': data_fmt, 'origem': 'Local', 'encontrado': True})
-    return resultados
-
-# ==========================================
-# BUSCA ONLINE (PDFs)
-# ==========================================
-def buscar_online_nativo(nome, ano=None, mes=None, dia=None, cpf=None):
-    nome_norm = normalizar_texto(nome)
-    cpf_norm = normalizar_cpf(cpf)
-    resultados = []
-    
-    # Se o ano não for informado, percorre o range definido
-    anos_para_buscar = [ano] if ano else ANOS_ONLINE
-    mes_alvo = str(mes).zfill(2) if mes else None
-    dia_alvo = str(dia).zfill(2) if dia else None
-
-    for a in anos_para_buscar:
-        url_ano = f"{BASE_URL}{a}/"
-        try:
-            response = requests.get(url_ano, timeout=10)
-            if response.status_code != 200: continue
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            links = [a_tag.get('href') for a_tag in soup.find_all('a') if a_tag.get('href', '').endswith('.pdf')]
-            
-            for href in links:
-                # O padrão esperado é YYYY.MM.DD.pdf
-                partes = href.split('/')[-1].split('.')
-                if len(partes) < 3: continue
-                
-                arq_ano, arq_mes, arq_dia = partes[0], partes[1], partes[2]
-                
-                # Filtros opcionais
-                if mes_alvo and arq_mes != mes_alvo: continue
-                if dia_alvo and arq_dia != dia_alvo: continue
-                
-                url_pdf = href if href.startswith('http') else f"{url_ano}{href.split('/')[-1]}"
-                
-                # Processamento do PDF (Leitura em memória/temp)
-                foi_encontrado = False
-                try:
-                    res_pdf = requests.get(url_pdf, timeout=15)
-                    with fitz.open(stream=res_pdf.content, filetype="pdf") as doc:
-                        for pagina in doc:
-                            txt_extraido = normalizar_texto(pagina.get_text())
-                            if nome_norm in txt_extraido:
-                                if not cpf_norm or (cpf_norm in txt_extraido):
-                                    foi_encontrado = True
-                                    break
-                except: continue
-
-                if foi_encontrado:
-                    data_fmt = f"{arq_dia}/{arq_mes}/{arq_ano}"
-                    print(f"  [+] Encontrado Online: {data_fmt}")
-                    resultados.append({'data': data_fmt, 'origem': 'Online', 'encontrado': True})
-                    
-        except: continue
+        # Divide o texto com base no padrão --- PÁGINA X --- (ignorando maiúsculas/minúsculas e acentos soltos)
+        # partes[0] será o texto antes da primeira página, partes[1] o número da pág, partes[2] o texto da pág...
+        partes = re.split(r'---\s*P[AÁ]GINA\s+(\d+)\s*---', conteudo, flags=re.IGNORECASE)
         
+        paginas_encontradas = []
+
+        if len(partes) == 1:
+            # Caso o arquivo não tenha a marcação de página por algum motivo
+            conteudo_norm = normalizar_texto(partes[0])
+            if nome_norm in conteudo_norm and (not cpf_norm or cpf_norm in conteudo_norm):
+                paginas_encontradas.append("Desconhecida")
+        else:
+            # Pula de 2 em 2 pegando o número da página e o texto correspondente
+            for i in range(1, len(partes), 2):
+                num_pagina = partes[i]
+                texto_pagina = partes[i+1]
+                
+                conteudo_norm = normalizar_texto(texto_pagina)
+                
+                achou_nome = nome_norm in conteudo_norm
+                achou_cpf = True if not cpf_norm else (cpf_norm in conteudo_norm)
+                
+                if achou_nome and achou_cpf:
+                    paginas_encontradas.append(num_pagina)
+                    
+        if paginas_encontradas:
+            p = arquivo.split('.')
+            data_fmt = f"{p[2]}/{p[1]}/{p[0]}"
+            paginas_str = ", ".join(paginas_encontradas)
+            print(f"  [+] Encontrado Local: {data_fmt} - Página(s): {paginas_str}")
+            resultados.append({'data': data_fmt, 'origem': 'Local', 'paginas': paginas_encontradas})
+            
     return resultados
 
 # ==========================================
@@ -124,30 +86,22 @@ def buscar_online_nativo(nome, ano=None, mes=None, dia=None, cpf=None):
 # ==========================================
 def realizar_busca(nome, ano=None, mes=None, dia=None, cpf=None):
     print(f"\n{'='*40}")
-    print(f"BUSCA HÍBRIDA: {nome}")
+    print(f"BUSCA: {nome}")
     print(f"FILTROS: Ano={ano or 'Todos'}, Mês={mes or 'Todos'}, Dia={dia or 'Todos'}")
     print(f"{'='*40}\n")
 
     todos_resultados = []
 
-    # Decide onde buscar baseado no ano informado ou faz busca total
-    if ano:
-        if ano <= 2007:
-            todos_resultados.extend(buscar_local_txt(nome, ano, mes, dia, cpf))
-        else:
-            todos_resultados.extend(buscar_online_nativo(nome, ano, mes, dia, cpf))
-    else:
-        # Busca em tudo (Cuidado: Isso pode demorar muito online!)
-        print("[*] Buscando em arquivos locais (1980-2007)...")
-        todos_resultados.extend(buscar_local_txt(nome, None, mes, dia, cpf))
-        print("[*] Buscando em arquivos online (2008+)...")
-        todos_resultados.extend(buscar_online_nativo(nome, None, mes, dia, cpf))
+    todos_resultados.extend(buscar_local_txt(nome, ano, mes, dia, cpf))
 
     print(f"\n--- RESUMO FINAL ---")
     print(f"Total de ocorrências: {len(todos_resultados)}")
     return todos_resultados
 
 if __name__ == "__main__":
+<<<<<<< HEAD
+    realizar_busca("antonio da silva gomes")
+=======
     # EXEMPLOS DE USO:
     
     # 1. Busca específica
@@ -158,3 +112,4 @@ if __name__ == "__main__":
 
     # 3. Busca por nome e dia específico, independente do mês ou ano
     realizar_busca("maria da conceição marques pinto")
+>>>>>>> 70fa0bc3e5fdd32a8645d8fb783a4c9df27d3c8d
