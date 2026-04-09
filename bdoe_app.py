@@ -295,6 +295,10 @@ class BDOEApp:
         self.root.geometry("850x650")
         self.root.minsize(800, 600)
         self.root.configure(bg=EstiloUI.CORES['fundo_app'])
+
+        caminho_icone = os.path.join(BASE_DIR, "icone.ico")
+        if os.path.exists(caminho_icone):
+            self.root.iconbitmap(caminho_icone)
         
         self.db = IndiceSQLite()
         self.links_armazenados = {}
