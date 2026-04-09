@@ -215,8 +215,7 @@ class AtualizadorDOE:
                     temp_pdf.write(chunk)
                 temp_pdf.flush()
                 
-                texto = normalizar_texto(pagina.get_text())
-                if not texto:
+                if ano >= 2008:
                     doc = fitz.open(temp_pdf_path)
                     for num_pagina, pagina in enumerate(doc, start=1):
                         texto = normalizar_texto(pagina.get_text())
@@ -296,7 +295,11 @@ class BDOEApp:
         self.root.minsize(800, 600)
         self.root.configure(bg=EstiloUI.CORES['fundo_app'])
 
-        caminho_icone = os.path.join(BASE_DIR, "icone.ico")
+        try:
+            caminho_icone = os.path.join(sys._MEIPASS, "icone.ico")
+        except:
+            caminho_icone = os.path.join(BASE_DIR, "icone.ico")
+            
         if os.path.exists(caminho_icone):
             self.root.iconbitmap(caminho_icone)
         
