@@ -152,7 +152,7 @@ class IndiceSQLite:
         sql = "SELECT arquivo, data, ano, pagina FROM diarios WHERE diarios MATCH ?"
         params = [query_match]
 
-        if ano: sql += " AND ano = ?"; params.append(ano)
+        if ano: sql += " AND ano = ?"; params.append(int(ano))
         if mes: sql += " AND mes = ?"; params.append(int(mes))
         if dia: sql += " AND dia = ?"; params.append(int(dia))
 
@@ -215,7 +215,8 @@ class AtualizadorDOE:
                     temp_pdf.write(chunk)
                 temp_pdf.flush()
                 
-                if ano >= 2008:
+                texto = normalizar_texto(pagina.get_text())
+                if not texto:
                     doc = fitz.open(temp_pdf_path)
                     for num_pagina, pagina in enumerate(doc, start=1):
                         texto = normalizar_texto(pagina.get_text())

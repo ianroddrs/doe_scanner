@@ -20,7 +20,7 @@ def extrair_data_doe(nome_arquivo):
         partes = nome_sem_ext.split('.')
         if len(partes) >= 3:
             ano, mes, dia = partes[0], partes[1], partes[2]
-            return f"{dia}/{mes}/{ano}", ano, mes, dia
+            return f"{dia}/{mes}/{ano}", int(ano), int(mes), int(dia)
     except:
         pass
     return None, None, None, None
@@ -154,9 +154,9 @@ class IndiceSQLite:
         sql = "SELECT arquivo, data, pagina FROM diarios WHERE diarios MATCH ?"
         params = [query_match]
 
-        if ano:
+        if ano and ano.isdigit():
             sql += " AND ano = ?"
-            params.append(str(ano))
+            params.append(int(ano))
         if mes:
             sql += " AND mes = ?"
             params.append(str(mes).zfill(2))
