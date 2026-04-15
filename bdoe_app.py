@@ -113,24 +113,21 @@ def validar_entrada_busca(nome, cpf=None, data_ini=None, data_fim=None):
         if len(cpf_nums) != 11:
             return False, "O CPF deve ter 11 dígitos."
             
-    def verificar_data_periodo(d_tuple, label):
-        d, m, y = d_tuple
-        # Se todos vazios, não filtra por esta data
-        if not d and not m and not y:
-            return None, ""
-        # Se apenas alguns preenchidos, erro
-        if not (d and m and y):
-            return None, f"Preencha o Dia, Mês e Ano da data '{label}', ou deixe-a totalmente vazia."
-            
+    def verificar_data_periodo(texto_data, label):
+        if not texto_data: return None, "" # Vazio é permitido
+        
+        # Separa a string "DD/MM/AAAA"
+        partes = texto_data.split('/')
+        if len(partes) != 3 or len(texto_data) != 10: 
+            return None, f"A data '{label}' deve estar no formato completo DD/MM/AAAA."
+        
         try:
-            d_int, m_int, y_int = int(d), int(m), int(y)
-            if not validar_data(y_int, m_int, d_int):
-                return None, f"A data '{label}' é inválida ou não existe no calendário."
-            if y_int < 1990 or y_int > datetime.now().year:
-                return None, f"O Ano da data '{label}' deve estar entre 1990 e {datetime.now().year}."
+            d_int, m_int, y_int = int(partes[0]), int(partes[1]), int(partes[2])
+            if not validar_data(y_int, m_int, d_int): return None, f"A data '{label}' é inválida ou não existe no calendário."
+            if y_int < 1990 or y_int > datetime.now().year: return None, f"O Ano '{label}' deve estar entre 1990 e {datetime.now().year}."
             return datetime(y_int, m_int, d_int), ""
         except ValueError:
-            return None, f"Utilize apenas números na data '{label}'."
+            return None, f"A data '{label}' deve conter apenas números e barras."
 
     dt_inicio, erro_ini = verificar_data_periodo(data_ini, "De")
     if erro_ini: return False, erro_ini
@@ -279,16 +276,14 @@ class IndiceSQLite:
         params = [query_match]
 
         try:
-            # Filtro Data Início (De)
-            if data_ini and all(data_ini):
-                d, m, y = map(int, data_ini)
+            if data_ini:
+                d, m, y = map(int, data_ini.split('/'))
                 val_ini = y * 10000 + m * 100 + d
                 sql += " AND (CAST(ano AS INTEGER) * 10000 + CAST(mes AS INTEGER) * 100 + CAST(dia AS INTEGER)) >= ?"
                 params.append(val_ini)
                 
-            # Filtro Data Fim (Até)
-            if data_fim and all(data_fim):
-                d, m, y = map(int, data_fim)
+            if data_fim:
+                d, m, y = map(int, data_fim.split('/'))
                 val_fim = y * 10000 + m * 100 + d
                 sql += " AND (CAST(ano AS INTEGER) * 10000 + CAST(mes AS INTEGER) * 100 + CAST(dia AS INTEGER)) <= ?"
                 params.append(val_fim)
@@ -489,6 +484,39 @@ class EntryComPlaceholder(tk.Entry):
         self.delete(0, tk.END)
         self._colocar_placeholder()
 
+
+class EntryDataMask(EntryComPlaceholder):
+    """Entry com placeholder que adiciona a máscara DD/MM/AAAA automaticamente."""
+    def __init__(self, master=None, placeholder="DD/MM/AAAA", **kwargs):
+        super().__init__(master, placeholder=placeholder, **kwargs)
+        self.bind('<KeyRelease>', self._aplicar_mascara)
+
+    def _aplicar_mascara(self, event):
+        # Ignora teclas de navegação e exclusão para não bugar a experiência do usuário
+        if event.keysym in ('BackSpace', 'Delete', 'Left', 'Right', 'Up', 'Down', 'Tab'):
+            return
+        
+        # Pega o valor usando o super de tk.Entry para não trigar a lógica de vazio do placeholder
+        texto = tk.Entry.get(self)
+        if texto == self.placeholder: return
+        
+        # Remove tudo que não for número
+        numeros = re.sub(r'\D', '', texto)
+        
+        # Formata com as barras
+        formatado = ""
+        for i in range(len(numeros)):
+            if i in (2, 4): formatado += '/'
+            formatado += numeros[i]
+        
+        # Limita a 10 caracteres
+        formatado = formatado[:10]
+        
+        # Atualiza a view
+        if texto != formatado:
+            self.delete(0, tk.END)
+            self.insert(0, formatado)
+
 class BDOEApp:
     def __init__(self, root):
         self.root = root
@@ -559,21 +587,13 @@ class BDOEApp:
         
         # Grupo "De:"
         tk.Label(frame_datas, text="De:", font=EstiloUI.FONTES['status'], bg=EstiloUI.CORES['fundo_card']).pack(side=tk.LEFT, padx=(0, 5))
-        self.entry_dia_ini = EntryComPlaceholder(frame_datas, placeholder="Dia", font=EstiloUI.FONTES['input'], width=4, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_dia_ini.pack(side=tk.LEFT, padx=(0, 5), ipady=3)
-        self.entry_mes_ini = EntryComPlaceholder(frame_datas, placeholder="Mês", font=EstiloUI.FONTES['input'], width=4, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_mes_ini.pack(side=tk.LEFT, padx=(0, 5), ipady=3)
-        self.entry_ano_ini = EntryComPlaceholder(frame_datas, placeholder="Ano", font=EstiloUI.FONTES['input'], width=5, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_ano_ini.pack(side=tk.LEFT, padx=(0, 20), ipady=3)
+        self.entry_data_ini = EntryDataMask(frame_datas, width=12, justify='center', font=EstiloUI.FONTES['input'], relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
+        self.entry_data_ini.pack(side=tk.LEFT, padx=(0, 20), ipady=3)
 
         # Grupo "Até:"
         tk.Label(frame_datas, text="Até:", font=EstiloUI.FONTES['status'], bg=EstiloUI.CORES['fundo_card']).pack(side=tk.LEFT, padx=(0, 5))
-        self.entry_dia_fim = EntryComPlaceholder(frame_datas, placeholder="Dia", font=EstiloUI.FONTES['input'], width=4, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_dia_fim.pack(side=tk.LEFT, padx=(0, 5), ipady=3)
-        self.entry_mes_fim = EntryComPlaceholder(frame_datas, placeholder="Mês", font=EstiloUI.FONTES['input'], width=4, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_mes_fim.pack(side=tk.LEFT, padx=(0, 5), ipady=3)
-        self.entry_ano_fim = EntryComPlaceholder(frame_datas, placeholder="Ano", font=EstiloUI.FONTES['input'], width=5, justify='center', relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
-        self.entry_ano_fim.pack(side=tk.LEFT, padx=(0, 10), ipady=3)
+        self.entry_data_fim = EntryDataMask(frame_datas, width=12, justify='center', font=EstiloUI.FONTES['input'], relief=tk.FLAT, highlightbackground=EstiloUI.CORES['borda'], highlightthickness=1)
+        self.entry_data_fim.pack(side=tk.LEFT, padx=(0, 10), ipady=3)   
 
         frame_botoes = tk.Frame(inner_busca, bg=EstiloUI.CORES['fundo_card'])
         frame_botoes.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(15, 0))
@@ -588,13 +608,13 @@ class BDOEApp:
         self.btn_atualizar.pack(side=tk.LEFT)
 
 
-        # Bindings para a tecla Enter
         botoes_entrada = [
-            self.entry_nome, self.entry_cpf, 
-            self.entry_dia_ini, self.entry_mes_ini, self.entry_ano_ini,
-            self.entry_dia_fim, self.entry_mes_fim, self.entry_ano_fim
+            self.entry_nome, 
+            self.entry_cpf, 
+            self.entry_data_ini, 
+            self.entry_data_fim
         ]
-        for entry in botoes_entrada:
+        for entry in botoes_entrada: 
             entry.bind('<Return>', lambda e: self.iniciar_busca())
 
         card_resultados = tk.Frame(main_container, bg=EstiloUI.CORES['fundo_card'], bd=1, relief=tk.SOLID)
@@ -652,14 +672,16 @@ class BDOEApp:
         Thread(target=_thread, daemon=True).start()
 
     def limpar_campos(self):
+        # Limpa os campos padrão
         self.entry_nome.delete(0, tk.END)
         self.entry_cpf.delete(0, tk.END)
         
-        # Limpa e devolve o visual cinza nativo dos placeholders
-        campos_datas = [self.entry_dia_ini, self.entry_mes_ini, self.entry_ano_ini, self.entry_dia_fim, self.entry_mes_fim, self.entry_ano_fim]
-        for entry in campos_datas:
-            entry.limpar_tudo()
+        # Usa a função limpar_tudo() da nossa classe customizada 
+        # para restaurar os placeholders
+        self.entry_data_ini.limpar_tudo()
+        self.entry_data_fim.limpar_tudo()
             
+        # Limpa os resultados e o contador
         self.text_resultado.config(state=tk.NORMAL)
         self.text_resultado.delete(1.0, tk.END)
         self.text_resultado.config(state=tk.DISABLED)
@@ -669,8 +691,8 @@ class BDOEApp:
         nome = self.entry_nome.get().strip()
         cpf = self.entry_cpf.get().strip()
         
-        data_ini = (self.entry_dia_ini.get().strip(), self.entry_mes_ini.get().strip(), self.entry_ano_ini.get().strip())
-        data_fim = (self.entry_dia_fim.get().strip(), self.entry_mes_fim.get().strip(), self.entry_ano_fim.get().strip())
+        data_ini = self.entry_data_ini.get().strip()
+        data_fim = self.entry_data_fim.get().strip()
         
         # Validando as entradas primeiro
         valido, erro_msg = validar_entrada_busca(nome, cpf, data_ini, data_fim)
