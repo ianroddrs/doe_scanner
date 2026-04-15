@@ -581,11 +581,12 @@ class BDOEApp:
         self.btn_buscar = tk.Button(frame_botoes, text="🔍 BUSCAR", font=EstiloUI.FONTES['botao'], bg=EstiloUI.CORES['principal'], fg="#FFFFFF", relief=tk.FLAT, padx=15, pady=6, command=self.iniciar_busca)
         self.btn_buscar.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.btn_atualizar = tk.Button(frame_botoes, text="⬇️ ATUALIZAR", font=EstiloUI.FONTES['botao'], bg=EstiloUI.CORES['alerta'], fg="#FFFFFF", relief=tk.FLAT, padx=15, pady=6, command=self.acionar_atualizacao)
-        self.btn_atualizar.pack(side=tk.LEFT, padx=(0, 10))
-
         self.btn_limpar = tk.Button(frame_botoes, text="LIMPAR", font=EstiloUI.FONTES['botao'], bg=EstiloUI.CORES['botao_secundario'], fg="#FFFFFF", relief=tk.FLAT, padx=15, pady=6, command=self.limpar_campos)
-        self.btn_limpar.pack(side=tk.LEFT)
+        self.btn_limpar.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.btn_atualizar = tk.Button(frame_botoes, text="⬇️ ATUALIZAR", font=EstiloUI.FONTES['botao'], bg=EstiloUI.CORES['alerta'], fg="#FFFFFF", relief=tk.FLAT, padx=15, pady=6, command=self.acionar_atualizacao)
+        self.btn_atualizar.pack(side=tk.LEFT)
+
 
         # Bindings para a tecla Enter
         botoes_entrada = [
@@ -635,7 +636,7 @@ class BDOEApp:
 
     def acionar_atualizacao(self):
         self.btn_atualizar.config(state=tk.DISABLED)
-        self.btn_buscar.config(state=tk.DISABLED)
+        # self.btn_buscar.config(state=tk.DISABLED)
         atualizador = AtualizadorDOE(self.db, self.atualizar_status, self.progresso_atualizacao)
         
         def _thread():
