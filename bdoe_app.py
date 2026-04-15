@@ -124,7 +124,7 @@ def validar_entrada_busca(nome, cpf=None, data_ini=None, data_fim=None):
         try:
             d_int, m_int, y_int = int(partes[0]), int(partes[1]), int(partes[2])
             if not validar_data(y_int, m_int, d_int): return None, f"A data '{label}' é inválida ou não existe no calendário."
-            if y_int < 1990 or y_int > datetime.now().year: return None, f"O Ano '{label}' deve estar entre 1990 e {datetime.now().year}."
+            if y_int < 1980 or y_int > datetime.now().year: return None, f"O Ano '{label}' deve estar entre 1980 e {datetime.now().year}."
             return datetime(y_int, m_int, d_int), ""
         except ValueError:
             return None, f"A data '{label}' deve conter apenas números e barras."
@@ -656,7 +656,7 @@ class BDOEApp:
 
     def acionar_atualizacao(self):
         self.btn_atualizar.config(state=tk.DISABLED)
-        # self.btn_buscar.config(state=tk.DISABLED)
+        self.btn_buscar.config(state=tk.DISABLED)
         atualizador = AtualizadorDOE(self.db, self.atualizar_status, self.progresso_atualizacao)
         
         def _thread():
